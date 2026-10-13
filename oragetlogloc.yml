@@ -1,0 +1,49 @@
+---
+- name: Discover Oracle alert and listener log locations
+  hosts: oracle_hosts
+  gather_facts: false
+  become: true
+  become_method: sudo
+  become_user: oracle
+
+  tasks:
+    - name: Discover Oracle installations and log locations
+      ansible.builtin.shell: |
+        echo "===== HOST ====="
+        hostname -f 2>/dev/null || hostname
+
+        echo "===== ORACLE PROCESSES ====="
+        ps -eo user,pid,args | grep -E '[o]ra_pmon_|[t]nslsnr' || true
+
+        echo "===== ORATAB ====="
+        for f in /etc/oratab /var/opt/oracle/oratab; do
+          if [ -r "$f" ]; then
+            echo "--- $f"
+            grep -v '^[[:space:]]*#' "$f" |
+              grep -v '^[[:space:]]*$' || true
+          fi
+        done
+
+        echo "===== ALERT LOG FILES ====="
+        for d in /opt/app/oracle /opt/oracle /u01/app/oracle /u02/app/oracle; do
+          if [ -d "$d" ]; then
+            find "$d" -type f -name 'alert_*.log' -print 2>/dev/null
+          fi
+        done
+
+        echo "===== LISTENER LOG FILES ====="
+        for d in /opt/app/oracle /opt/oracle /u01/app/oracle /u02/app/oracle; do
+          if [ -d "$d" ]; then
+            find "$d" -type f -name 'listener.log' -print 2>/dev/null
+          fi
+        done
+      args:
+        executable: /bin/bash
+      register: oracle_discovery
+      changed_when: false
+      failed_when: false
+
+    - name: Display discovery results
+      ansible.builtin.debug:
+        var: oracle_discovery.stdout_lines
+
